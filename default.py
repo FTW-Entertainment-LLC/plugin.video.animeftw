@@ -7,8 +7,8 @@ import xbmcaddon
 #import xbmcaddon
 
 #plugin constants
-__plugin__ = "AnimeFTW"
-__author__ = "maruchan"
+__plugin__ = "AnimeFTW.tv"
+__author__ = "FTW Entertainment LLC"
 __settings__ = xbmcaddon.Addon(id='plugin.video.animeftw')
 
 print "[PLUGIN] '%s: version initialized!" % (__plugin__)

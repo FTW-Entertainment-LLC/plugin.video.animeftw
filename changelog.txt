@@ -1,3 +1,6 @@
+[B]Version 2.0.0[/B]
+- Branding update for Unlicensed only model.
+
 [B]Version 1.7.3[/B]
 - Replacing BeautifulSoup with ElementTree, courtesy of don @ AFTW
 
