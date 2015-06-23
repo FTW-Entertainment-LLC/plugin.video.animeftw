@@ -39,10 +39,10 @@ class LoginFTW:
 					self.settings['password'] = SETTINGS.getSetting("password_ftw")
 					return self.settings['username'], self.settings['password']
 				else:
-					xbmc.executebuiltin('XBMC.Notification("Please Login:","An advanced user account is required to view content.", 3000)')
+					xbmc.executebuiltin('XBMC.Notification("Please Login:","An advanced member account is required to view content.", 3000)')
 					return '', ''
 			else:
-				xbmc.executebuiltin('XBMC.Notification("Please Login:","An advanced user account is required to view content.", 3000)')
+				xbmc.executebuiltin('XBMC.Notification("Please Login:","An advanced Member account is required to view content.", 3000)')
 				return '', ''
 		else:
 			return self.settings['username'], self.settings['password']
@@ -75,6 +75,16 @@ class grabFTW:
 		del latest_list
 		del root
 		UI().endofdirectory('title')
+	
+	def getWatchlist(self, count = 25):
+		htmlSource = self.getHTML("https://www.animeftw.tv/api/v1/show?" + self.urlString + "&action=mywatchlist&start=0&count=" + str(count))
+		root = ElementTree.fromstring(htmlsource)
+		watchlist = root.findall('series')
+		for series in watchlist:
+			UI().addItem({'Seriesname': unicode(series.find('series').text.replace('`', '\'')).encode('utf-8'), 'Title': unicode(series.find('series'.text.replace('`', '\'') + ", Watched to Ep " + series.find('last-episode')).encode('utf-8')),'mode': 'episodes', 'url': series.attrib['href']})
+		del watchlist
+		del root
+		UI().endofdirectory('series')
 		
 	def getGenres(self):
 		htmlSource = self.getHTML("https://www.animeftw.tv/api/v1/show?" + self.urlString + "&show=tagcloud")
@@ -225,6 +235,7 @@ class UI:
 		self.addItem({'Title':SETTINGS.getLocalizedString(50000), 'mode':'series'})
 		self.addItem({'Title':SETTINGS.getLocalizedString(50001), 'mode':'ovas'})
 		self.addItem({'Title':SETTINGS.getLocalizedString(50002), 'mode':'movies'})
+		self.addItem({'Title':SETTINGS.getLocalizedString(50004), 'mode':'watchlist'})
 		self.endofdirectory()
 		
 	def showAnimeSeries(self):
@@ -237,6 +248,9 @@ class UI:
 	def animeGenre(self):
 		grabFTW().getGenres()
 		self.endofdirectory()
+
+	def watchlist(self):
+		grabFTW().getWatchlist()
 	
 	def latest(self):
 		grabFTW().getLatest(25)
@@ -286,3 +300,5 @@ class Main:
 			UI().animeGenre()
 		elif mode == 'anime_all' or mode == 'ovas' or mode == 'anime_airing' or mode == 'anime_completed' or mode == 'movies':
 			UI().series()
+		elif mode == 'watchlist':
+			UI().watchlist()
