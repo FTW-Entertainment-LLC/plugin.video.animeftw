@@ -1,7 +1,8 @@
 import os
 import sys
 import md5
-import urllib
+import json
+import requests
 import xbmc
 import xbmcgui
 import xbmcaddon
@@ -27,11 +28,12 @@ class LoginFTW:
 		self.settings = {}
 		self.settings['username'] = SETTINGS.getSetting("username_ftw")
 		self.settings['password'] = SETTINGS.getSetting("password_ftw")
+		self.settings['token'] = SETTINGS.getSetting("token_ftw")
 	
 	def checkLogin(self):
-		if self.settings['username'] == '' or self.settings['password'] == '':
-			self.resp = xbmcgui.Dialog().yesno("No username/password set!","AnimeFTW.tv requires you to be logged in to view", \
-			"videos.  Would you like to log-in now?")
+		if self.settings['token'] == '':
+			self.resp = xbmcgui.Dialog().yesno("You are not currently logged in.","AnimeFTW.tv requires you to be logged in to view", \
+			"videos. Would you like to log-in now?")
 			if self.resp:
 				self.respLogin = SETTINGS.openSettings()
 				if self.respLogin:
@@ -39,13 +41,10 @@ class LoginFTW:
 					self.settings['password'] = SETTINGS.getSetting("password_ftw")
 					return self.settings['username'], self.settings['password']
 				else:
-					xbmc.executebuiltin('XBMC.Notification("Please Login:","An advanced member account is required to view content.", 3000)')
+					xbmc.executebuiltin('XBMC.Notification("Please Login:","An Advanced member account is required to view more than 2 episodes of a series.", 3000)')
 					return '', ''
 			else:
-				xbmc.executebuiltin('XBMC.Notification("Please Login:","An advanced Member account is required to view content.", 3000)')
-				return '', ''
-		else:
-			return self.settings['username'], self.settings['password']
+				return self.settings['username'], self.settings['password'], self.settings['token']
 			
 	def hashPassword(self, password):
 		return md5.new(password).hexdigest()
@@ -54,9 +53,11 @@ class grabFTW:
 	
 	def __init__(self, *args, **kwargs):
 		self.settings = {}
-		self.settings['username'], self.settings['password'] = LoginFTW().checkLogin()
-		self.settings['passHash'] = LoginFTW().hashPassword(self.settings['password'])
-		self.urlString = 'did=hVhS-672s-sKhK-yUn0&username=' + self.settings['username'] + '&password=' + self.settings['passHash']
+		#self.settings['username'], self.settings['password'] = LoginFTW().checkLogin()
+		#self.settings['passHash'] = LoginFTW().hashPassword(self.settings['password'])
+		self.settings['username'], self.settings['password'], self.settings['token'] = LoginFTW().checkLogin()
+		self.params = {"did":"hVhS-672s-sKhK-yUn0","token":self.settings['token']}
+		#self.urlString = 'did=hVhS-672s-sKhK-yUn0&username=' + self.settings['username'] + '&password=' + self.settings['passHash']
 
 	def getHTML(self, url):	
 		self.currenturl = url
@@ -65,15 +66,28 @@ class grabFTW:
 		htmlSource = urllib.urlopen(url).read()
 		print "[FTW] Got URL."
 		return htmlSource
+
+	def getContent(self, data, action):
+		self.currentAction = action
+		self.url = "https://www.animeftw.tv/api/v2/"
+		self.actionData = self.params # build in the parameters first.
+		self.actionData.update(data) # combine with the data supplied by the various functions.
+		self.headers = {'content-type': 'application/json'}
+		jsonSource = None
+		print "[AFTW] Requestion Data from action: " + self.currentAction
+		response = requests.post(self.url,params="",data=json.dumps(self.actionData),headers=self.headers)
+		print "[AFTW] Got Data."
+		return jsonSource		
 		
-	def getLatest(self, count = 25):
-		htmlSource = self.getHTML("https://www.animeftw.tv/api/v1/show?" + self.urlString + "&show=latest&start=0&count=" + str(count))
-		root = ElementTree.fromstring(htmlSource)
-		latest_list = root.findall('episode')
-		for episode in latest_list:
-			UI().addItem({'Seriesname': unicode(episode.find('series').text.replace('`', '\'')).encode('utf-8'), 'Title': unicode(episode.find('series').text.replace('`', '\'') + " - " + episode.find('epnumber').text + " - " + episode.find('name').text.replace('`', '\'')).encode('utf-8'), 'mode': 'playEpisode', 'url': episode.find('videolink').text })
-		del latest_list
-		del root
+	def getLatestEpisodes(self, count = 30):
+		data = {"action":"display-episodes","latest":"true","start":"0","count":str(count)}
+		action = "Display Latest Episodes"
+		jsonSource = self.getContent(data, action)
+		parsed_json = json.loads(jsonSource)
+		latest_results = parsed_json['results']
+		for episode in latest_results:
+			UI().addItem({'Seriesname': unicode(episode['fullSeriesName'].replace('`', '\'')).encode('utf-8'), 'Title': unicode(episode['fullSeriesName'].replace('`', '\'') + " - " + episode['epnumber'] + " - " + episode['epname'].replace('`', '\'')).encode('utf-8'), 'mode': 'playEpisode', 'url': episode['video'] })
+		del latest_results	
 		UI().endofdirectory('title')
 	
 	def getWatchlist(self, count = 25):
