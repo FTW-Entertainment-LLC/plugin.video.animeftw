@@ -29,6 +29,7 @@ class LoginFTW:
 		self.settings['username'] = SETTINGS.getSetting("username_ftw")
 		self.settings['password'] = SETTINGS.getSetting("password_ftw")
 		self.settings['token'] = SETTINGS.getSetting("token_ftw")
+		self.params = {"did":"hVhS-672s-sKhK-yUn0"}
 	
 	def checkLogin(self):
 		if self.settings['token'] == '':
@@ -37,27 +38,42 @@ class LoginFTW:
 			if self.resp:
 				self.respLogin = SETTINGS.openSettings()
 				if self.respLogin:
-					self.settings['username'] = SETTINGS.getSetting("username_ftw")
-					self.settings['password'] = SETTINGS.getSetting("password_ftw")
-					return self.settings['username'], self.settings['password']
+					#self.settings['username'] = SETTINGS.getSetting("username_ftw")
+					#self.settings['password'] = SETTINGS.getSetting("password_ftw")
+					response = self.validateLogin(SETTINGS.getSetting("username_ftw"), SETTINGS.SETTINGS.getSetting("password_ftw"))
+					if resonse['status'] == 200:
+						# Successful login, return the token.
+						self.settings['token'] = response['message']
+						return response['message'] # this is the token.
+					else:
+						xbmc.executebuiltin('XBMC.Notification("Please Login:","Your Username or Password were not valid, please try again.", 3000)')
 				else:
 					xbmc.executebuiltin('XBMC.Notification("Please Login:","An Advanced member account is required to view more than 2 episodes of a series.", 3000)')
-					return '', ''
+					return ''
 			else:
-				return self.settings['username'], self.settings['password'], self.settings['token']
+				xbmc.executebuiltin('XBMC.Notification("Please Login:","An account is required to view videos.", 3000)')
+				return ''
+		else:
+			return self.settings['token']
 			
 	def hashPassword(self, password):
 		return md5.new(password).hexdigest()
 		
+	def validateLogin(self, username, password):
+		self.url = "https://www.animeftw.tv/api/v2/"
+		self.actionData = self.params # build in the parameters first.
+		self.actionData = self.actionData.update({"username":username,"password":password})
+		self.headers = {'content-type': 'application/json'}
+		#Send the data to the server
+		response = requests.post(self.url,params="",data=json.dumps(self.actionData),headers=self.headers)		
+		return response
+	
 class grabFTW:
 	
 	def __init__(self, *args, **kwargs):
 		self.settings = {}
-		#self.settings['username'], self.settings['password'] = LoginFTW().checkLogin()
-		#self.settings['passHash'] = LoginFTW().hashPassword(self.settings['password'])
-		self.settings['username'], self.settings['password'], self.settings['token'] = LoginFTW().checkLogin()
+		self.settings['token'] = LoginFTW().checkLogin()
 		self.params = {"did":"hVhS-672s-sKhK-yUn0","token":self.settings['token']}
-		#self.urlString = 'did=hVhS-672s-sKhK-yUn0&username=' + self.settings['username'] + '&password=' + self.settings['passHash']
 
 	def getHTML(self, url):	
 		self.currenturl = url
