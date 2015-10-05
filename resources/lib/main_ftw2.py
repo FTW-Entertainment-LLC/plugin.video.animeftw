@@ -29,7 +29,7 @@ class LoginFTW:
 		self.settings['username'] = SETTINGS.getSetting("username_ftw")
 		self.settings['password'] = SETTINGS.getSetting("password_ftw")
 		self.settings['token'] = SETTINGS.getSetting("token_ftw")
-		self.params = {"did":"hVhS-672s-sKhK-yUn0"}
+		self.params = {"devkey":"hVhS-672s-sKhK-yUn0"}
 	
 	def checkLogin(self):
 		if self.settings['token'] == '':
@@ -73,7 +73,7 @@ class grabFTW:
 	def __init__(self, *args, **kwargs):
 		self.settings = {}
 		self.settings['token'] = LoginFTW().checkLogin()
-		self.params = {"did":"hVhS-672s-sKhK-yUn0","token":self.settings['token']}
+		self.params = {"devkey":"hVhS-672s-sKhK-yUn0","token":self.settings['token']}
 
 	def getHTML(self, url):	
 		self.currenturl = url
@@ -117,61 +117,65 @@ class grabFTW:
 		UI().endofdirectory('series')
 		
 	def getGenres(self):
-		htmlSource = self.getHTML("https://www.animeftw.tv/api/v1/show?" + self.urlString + "&show=tagcloud")
-		root = ElementTree.fromstring(htmlSource)
-		tag_list = root.findall('tag')
-		for tag in tag_list:
-			genreFilter = tag.attrib['href'].split('filter=')[1]
-			UI().addItem({'Title': unicode(tag.text).encode('utf-8').title(), 'mode': 'anime_all', 'url': tag.attrib['href'], 'category': str(genreFilter)})
-		del tag_list
-		del root
+		data = {"action":"display-categories","start":"0","count":str(count)}
+		action = "Display Category Listing."
+		jsonSource = self.getContent(data, action)
+		parsed_json = json.loads(jsonSource)
+		tag_results = parsed_json['results']
+		for tag in tag_results:
+			UI().addItem({'Title': unicode(tag['name'].replace('`', '\'')).encode('utf-8'), 'mode': 'anime_all', 'category': tag['id']})
+				.addItem(info, extrainfo = None, isFolder=True, total_items = 0):
+		del tag_results
 		UI().endofdirectory('title')
 		
 	def getListing(self, category = 0, showType = 'anime', count = 2000, filter = None):
-		print "[FTW] FILTER is set to: " + str(filter)
-		url = "https://www.animeftw.tv/api/v1/show?" + self.urlString + "&show=" + showType + "&start=0&count=" + str(count)
+		if showType == 'anime':
+			display = 'display-series'
+		else:
+			display = 'display-series'
+			
+		data = {"action":display,"start":"0","count":str(count)}
+		action = "Display Category Listing."		
+		print "[AFTW] FILTER is set to: " + str(filter)
+		
 		if filter:
-			url += "&filter=" + str(filter)
-		htmlSource = self.getHTML(url)
-		root = ElementTree.fromstring(htmlSource)
+			data.update({"filter":str(filter)})
+			
+		jsonSource = self.getContent(data, action)
+		parsed_json = json.loads(jsonSource)
+		
 		cat_list = ['episode', 'episode', 'episode', 'episode', 'episode', 'movie']
 		videoType = cat_list[category]
-		print "[FTW] Current video type: " + str(videoType)
-		series_list = root.findall('series')
-		for series in series_list:
-			numberOfMovies = int(series.find('movies').text)
-			numberOfEpisodes = int(series.find('episodes').text)
-			isOVA = series.find('ova').text
-			isAiring = series.find('airing').text
+		print "[AFTW] Current video type: " + str(videoType)
+		series_results = parsed_json['results']
+		for series in series_results:
+			numberOfMovies = int(series['movies'])
+			numberOfEpisodes = int(series['episodes'])
+			isAiring = int(series['stillRelease'])
 			if numberOfMovies == 1 and numberOfEpisodes == 1 and category != 5:
 				continue
 			elif numberOfMovies < 1 and category == 5:
 				continue
-			elif isOVA == 'yes' and category != 0:
+			elif isAiring == 0 and category == 2:
 				continue
-			elif isOVA == 'no' and category == 0:
-				continue
-			elif isAiring == 'no' and category == 2:
-				continue
-			elif isAiring == 'yes' and category == 3:
+			elif isAiring == 1 and category == 3:
 				continue
 			else:
-				seriesname = series.find('seriesName').text
-				seriesname = unicode(seriesname.replace('`', '\'')).encode('utf-8')
+				series_id = series['id']
 				
-				seriesdict = {'name': seriesname, \
-							  'nameorig': unicode(series.find('romaji').text).encode('utf-8'), \
-							  'url': series.attrib['href'], \
-							  'thumb': series.find('image').text, \
-							  'plot':unicode(series.find('description').text).encode('utf-8'), \
-							  'rating': 0.0, \
+				seriesdict = {'id': series_id, \
+							  'name': unicode(series['fullSeriesName'].replace('`', '\'')).encode('utf-8'
+							  'nameorig': unicode(series['romaji']).encode('utf-8'), \
+							  'url': 0, \
+							  'thumb': series['image'], \
+							  'plot':unicode(series['description']).encode('utf-8'), \
+							  'rating': int(series['reviews-average-stars']), \
 							  'episodes': numberOfEpisodes, \
-							  'genre': unicode(series.find('category').text).encode('utf-8') }
+							  'genre': unicode(series['category']).encode('utf-8') }
 
-				UI().addItem({'Title':seriesdict['name'], 'mode': videoType, 'url':seriesdict['url'], 'Thumb':seriesdict['thumb']}, seriesdict, True, len(series_list))
+				UI().addItem({'Title':seriesdict['name'], 'mode': videoType, 'url':seriesdict['url'], 'Thumb':seriesdict['thumb']}, seriesdict, True, len(series_results))
 				
-		del series_list
-		del root
+		del series_results
 		UI().endofdirectory('title')
 		
 	def getEpisodes(self, url, seriesname = None, seriesimage = None, category = None):
@@ -265,7 +269,7 @@ class UI:
 		self.addItem({'Title':SETTINGS.getLocalizedString(50000), 'mode':'series'})
 		self.addItem({'Title':SETTINGS.getLocalizedString(50001), 'mode':'ovas'})
 		self.addItem({'Title':SETTINGS.getLocalizedString(50002), 'mode':'movies'})
-		self.addItem({'Title':SETTINGS.getLocalizedString(50004), 'mode':'watchlist'})
+		#self.addItem({'Title':SETTINGS.getLocalizedString(50004), 'mode':'watchlist'})
 		self.endofdirectory()
 		
 	def showAnimeSeries(self):
