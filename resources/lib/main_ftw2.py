@@ -2,6 +2,7 @@ import os
 import sys
 import md5
 import json
+import urllib
 import requests
 import xbmc
 import xbmcgui
@@ -28,31 +29,45 @@ class LoginFTW:
 		self.settings = {}
 		self.settings['username'] = SETTINGS.getSetting("username_ftw")
 		self.settings['password'] = SETTINGS.getSetting("password_ftw")
-		self.settings['token'] = SETTINGS.getSetting("token_ftw")
+		self.settings['token'] = SETTINGS.getSetting("token")
 		self.params = {"devkey":"hVhS-672s-sKhK-yUn0"}
 	
 	def checkLogin(self):
+		# checking if the token is not set.
 		if self.settings['token'] == '':
-			self.resp = xbmcgui.Dialog().yesno("You are not currently logged in.","AnimeFTW.tv requires you to be logged in to view", \
-			"videos. Would you like to log-in now?")
-			if self.resp:
-				self.respLogin = SETTINGS.openSettings()
-				if self.respLogin:
-					#self.settings['username'] = SETTINGS.getSetting("username_ftw")
-					#self.settings['password'] = SETTINGS.getSetting("password_ftw")
-					response = self.validateLogin(SETTINGS.getSetting("username_ftw"), SETTINGS.SETTINGS.getSetting("password_ftw"))
-					if resonse['status'] == 200:
-						# Successful login, return the token.
-						self.settings['token'] = response['message']
-						return response['message'] # this is the token.
+			# first, if the token isnt set, but the username and password is.
+			# Create the token, and continue on with the process.
+			if self.settings['username'] == '' or self.settings['password'] == '':
+				self.resp = xbmcgui.Dialog().yesno("You are not currently logged in.","AnimeFTW.tv requires you to be logged in to view", \
+				"videos. Would you like to log-in now?")
+				if self.resp:
+					self.respLogin = SETTINGS.openSettings()
+					
+					if self.settings['username'] == '' or self.settings['password'] == '':
+						xbmc.executebuiltin('XBMC.Notification("Please Login:","An Advanced member account is required to view more than 2 episodes of a series.", 3000)')
+						return ''
 					else:
-						xbmc.executebuiltin('XBMC.Notification("Please Login:","Your Username or Password were not valid, please try again.", 3000)')
+						response = self.validateLogin(SETTINGS.getSetting("username_ftw"), SETTINGS.getSetting("password_ftw"))
+						response = json.loads(response)
+						if response['status'] == "200":
+							# Successful login, return the token.
+							SETTINGS.setSetting(id="token", value=response['message'])
+							return response['message'] # this is the token.
+						else:
+							xbmc.executebuiltin('XBMC.Notification("Please Login:","Your Username or Password were not valid, please try again.", 3000)')
 				else:
-					xbmc.executebuiltin('XBMC.Notification("Please Login:","An Advanced member account is required to view more than 2 episodes of a series.", 3000)')
+					xbmc.executebuiltin('XBMC.Notification("Please Login:","An account is required to view videos.", 3000)')
 					return ''
 			else:
-				xbmc.executebuiltin('XBMC.Notification("Please Login:","An account is required to view videos.", 3000)')
-				return ''
+				# we will build the the token since username and password are set.
+				response = self.validateLogin(SETTINGS.getSetting("username_ftw"), SETTINGS.getSetting("password_ftw"))
+				response = json.loads(response)
+				if response['status'] == "200":
+					# Successful login, return the token.
+					SETTINGS.setSetting(id="token", value=response['message'])
+					return response['message'] # this is the token.
+				else:
+					xbmc.executebuiltin('XBMC.Notification("Please Login:","Your Username or Password were not valid, please try again.", 3000)')
 		else:
 			return self.settings['token']
 			
@@ -62,11 +77,12 @@ class LoginFTW:
 	def validateLogin(self, username, password):
 		self.url = "https://www.animeftw.tv/api/v2/"
 		self.actionData = self.params # build in the parameters first.
-		self.actionData = self.actionData.update({"username":username,"password":password})
+		self.actionData.update({"username":username,"password":password,"remember":"true"})
 		self.headers = {'content-type': 'application/json'}
 		#Send the data to the server
-		response = requests.post(self.url,params="",data=json.dumps(self.actionData),headers=self.headers)		
-		return response
+		response = requests.post(self.url,data=self.actionData)
+		finalResponse = response.text
+		return finalResponse
 	
 class grabFTW:
 	
@@ -88,11 +104,9 @@ class grabFTW:
 		self.url = "https://www.animeftw.tv/api/v2/"
 		self.actionData = self.params # build in the parameters first.
 		self.actionData.update(data) # combine with the data supplied by the various functions.
-		self.headers = {'content-type': 'application/json'}
 		jsonSource = None
-		print "[AFTW] Requestion Data from action: " + self.currentAction
-		response = requests.post(self.url,params="",data=json.dumps(self.actionData),headers=self.headers)
-		print "[AFTW] Got Data."
+		response = requests.post(self.url,data=self.actionData)
+		jsonSource = response.text
 		return jsonSource		
 		
 	def getLatestEpisodes(self, count = 30):
@@ -124,7 +138,6 @@ class grabFTW:
 		tag_results = parsed_json['results']
 		for tag in tag_results:
 			UI().addItem({'Title': unicode(tag['name'].replace('`', '\'')).encode('utf-8'), 'mode': 'anime_all', 'category': tag['id']})
-				.addItem(info, extrainfo = None, isFolder=True, total_items = 0):
 		del tag_results
 		UI().endofdirectory('title')
 		
@@ -164,7 +177,7 @@ class grabFTW:
 				series_id = series['id']
 				
 				seriesdict = {'id': series_id, \
-							  'name': unicode(series['fullSeriesName'].replace('`', '\'')).encode('utf-8'
+							  'name': unicode(series['fullSeriesName'].replace('`', '\'')).encode('utf-8'), \
 							  'nameorig': unicode(series['romaji']).encode('utf-8'), \
 							  'url': 0, \
 							  'thumb': series['image'], \
@@ -287,7 +300,7 @@ class UI:
 		grabFTW().getWatchlist()
 	
 	def latest(self):
-		grabFTW().getLatest(25)
+		grabFTW().getLatestEpisodes(25)
 		
 	def series(self):
 		cat_dict = {'ovas': 0, 'anime_all': 1, 'anime_airing': 2, 'anime_completed': 3, 'anime_genres': 4, 'movies': 5}
@@ -336,3 +349,4 @@ class Main:
 			UI().series()
 		elif mode == 'watchlist':
 			UI().watchlist()
+
