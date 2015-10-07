@@ -91,14 +91,6 @@ class grabFTW:
 		self.settings['token'] = LoginFTW().checkLogin()
 		self.params = {"devkey":"hVhS-672s-sKhK-yUn0","token":self.settings['token']}
 
-	def getHTML(self, url):	
-		self.currenturl = url
-		htmlSource = None
-		print "[FTW] Finding URL: "+self.currenturl
-		htmlSource = urllib.urlopen(url).read()
-		print "[FTW] Got URL."
-		return htmlSource
-
 	def getContent(self, data, action):
 		self.currentAction = action
 		self.url = "https://www.animeftw.tv/api/v2/"
@@ -121,17 +113,19 @@ class grabFTW:
 		UI().endofdirectory('title')
 	
 	def getWatchlist(self, count = 25):
-		htmlSource = self.getHTML("https://www.animeftw.tv/api/v1/show?" + self.urlString + "&action=mywatchlist&start=0&count=" + str(count))
-		root = ElementTree.fromstring(htmlsource)
-		watchlist = root.findall('series')
+		data = {"action":"display-mywatchlist","start":"0","count":"30"}
+		action = "Display My WatchList Entries"
+		jsonSource = self.getContent(data, action)
+		parsed_json = json.loads(jsonSource)
+		watchlist_results = parsed_json['results']
+		
 		for series in watchlist:
-			UI().addItem({'Seriesname': unicode(series.find('series').text.replace('`', '\'')).encode('utf-8'), 'Title': unicode(series.find('series'.text.replace('`', '\'') + ", Watched to Ep " + series.find('last-episode')).encode('utf-8')),'mode': 'episodes', 'url': series.attrib['href']})
+			UI().addItem({'Seriesname': unicode(series['fullSeriesName'].replace('`', '\'')).encode('utf-8'), 'Title': unicode(series['series'].replace('`', '\'') + ", Watched to Ep " + series['last-episode']).encode('utf-8'),'mode': 'episodes', 'url': series['href']})
 		del watchlist
-		del root
 		UI().endofdirectory('series')
 		
 	def getGenres(self):
-		data = {"action":"display-categories","start":"0","count":str(count)}
+		data = {"action":"display-categories","start":"0","count":"200"}
 		action = "Display Category Listing."
 		jsonSource = self.getContent(data, action)
 		parsed_json = json.loads(jsonSource)
@@ -148,7 +142,7 @@ class grabFTW:
 			display = 'display-series'
 			
 		data = {"action":display,"start":"0","count":str(count)}
-		action = "Display Category Listing."		
+		action = "Display Category Listing."
 		print "[AFTW] FILTER is set to: " + str(filter)
 		
 		if filter:
@@ -162,8 +156,8 @@ class grabFTW:
 		print "[AFTW] Current video type: " + str(videoType)
 		series_results = parsed_json['results']
 		for series in series_results:
-			numberOfMovies = int(series['movies'])
-			numberOfEpisodes = int(series['episodes'])
+			numberOfMovies = int(series['Movies'])
+			numberOfEpisodes = 1
 			isAiring = int(series['stillRelease'])
 			if numberOfMovies == 1 and numberOfEpisodes == 1 and category != 5:
 				continue
@@ -173,46 +167,44 @@ class grabFTW:
 				continue
 			elif isAiring == 1 and category == 3:
 				continue
-			else:
-				series_id = series['id']
-				
-				seriesdict = {'id': series_id, \
+			else:				
+				seriesdict = {'id': series['id'], \
 							  'name': unicode(series['fullSeriesName'].replace('`', '\'')).encode('utf-8'), \
 							  'nameorig': unicode(series['romaji']).encode('utf-8'), \
-							  'url': 0, \
+							  'url': '0', \
 							  'thumb': series['image'], \
 							  'plot':unicode(series['description']).encode('utf-8'), \
 							  'rating': int(series['reviews-average-stars']), \
 							  'episodes': numberOfEpisodes, \
 							  'genre': unicode(series['category']).encode('utf-8') }
-
-				UI().addItem({'Title':seriesdict['name'], 'mode': videoType, 'url':seriesdict['url'], 'Thumb':seriesdict['thumb']}, seriesdict, True, len(series_results))
+							  
+				UI().addItem({'Title':seriesdict['name'], 'mode': videoType, 'url':seriesdict['url'], 'Thumb':seriesdict['thumb'], 'id':seriesdict['id']}, seriesdict, True, len(series_results))
 				
 		del series_results
 		UI().endofdirectory('title')
 		
-	def getEpisodes(self, url, seriesname = None, seriesimage = None, category = None):
-		htmlSource = self.getHTML(url)
-		root = ElementTree.fromstring(htmlSource)
-		episodes = root.findall('.//' + category)
+	def getEpisodes(self, url, seriesid = None, seriesimage = None, category = None):
+		data = {"id":seriesid,"action":"display-episodes","start":"0","count":"300"}
+		action = "Display Category Listing."
+		jsonSource = self.getContent(data, action)
+		parsed_json = json.loads(jsonSource)
+		episode_results = parsed_json['results']	
 		
-		for i, episode in enumerate(episodes):
+		for episode in episode_results:
 			if category == 'episode':
-				epname = unicode(episode.find('epnumber').text + ".) " + episode.find('name').text.replace('`', '\'')).encode('utf-8')
+				epname = unicode(episode['epnumber'] + ".) " + episode['epname'].replace('`', '\'')).encode('utf-8')
 			else:
-				epname = unicode(episode.find('name').text.replace('`', '\'')).encode('utf-8')
+				epname = unicode(episode['epname'].replace('`', '\'')).encode('utf-8')
 			
-			url = episode.find('videolink').text
-			thumbnail = episode.find('image').text
-			if thumbnail == "http://static.ftw-cdn.com/site-images/video-images/noimage.png":
+			url = episode['video']
+			thumbnail = episode['image']
+			if thumbnail == "http://img02.animeftw.tv/video-images/noimage.png":
 				thumbnail = seriesimage
 			
 			li = xbmcgui.ListItem(epname, path = url, thumbnailImage = thumbnail)
 			li.setInfo(type="Video", infoLabels={ "Title": epname })
 			li.setProperty("IsPlayable","true");
 			xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=url, listitem=li, isFolder=False)
-		del episodes
-		del root
 		UI().endofdirectory()
 		
 	def playVid(self, url, name, thumb):
@@ -311,7 +303,7 @@ class UI:
 			grabFTW().getListing(cat_dict[self.main.args.mode])
 	
 	def episodes(self):
-		grabFTW().getEpisodes(self.main.args.url, self.main.args.name, self.main.args.icon, self.main.args.mode)
+		grabFTW().getEpisodes(self.main.args.url, self.main.args.id, self.main.args.icon, self.main.args.mode)
 		
 	def startVideo(self):
 		grabFTW().playVid(self.main.args.url, self.main.args.name, self.main.args.icon)
