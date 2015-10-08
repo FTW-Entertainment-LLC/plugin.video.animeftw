@@ -1,6 +1,5 @@
 import os
 import sys
-import md5
 import json
 import urllib
 import requests
@@ -8,7 +7,6 @@ import xbmc
 import xbmcgui
 import xbmcaddon
 import xbmcplugin
-from xml.etree import ElementTree
 
 SETTINGS = sys.modules[ "__main__" ].__settings__
 
@@ -70,9 +68,6 @@ class LoginFTW:
 					xbmc.executebuiltin('XBMC.Notification("Please Login:","Your Username or Password were not valid, please try again.", 3000)')
 		else:
 			return self.settings['token']
-			
-	def hashPassword(self, password):
-		return md5.new(password).hexdigest()
 		
 	def validateLogin(self, username, password):
 		self.url = "https://www.animeftw.tv/api/v2/"
