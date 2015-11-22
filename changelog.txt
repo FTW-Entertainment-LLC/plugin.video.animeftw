@@ -1,3 +1,7 @@
+[B]Version 2.1.0[/B]
+- Added Token validation
+- Improved error handling for the login.
+
 [B]Version 2.0.0[/B]
 - Branding update for Unlicensed only model.
 - Changed to Version 2 of the AnimeFTW.tv API
