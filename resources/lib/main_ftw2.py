@@ -35,49 +35,81 @@ class LoginFTW:
 		if self.settings['token'] == '':
 			# first, if the token isnt set, but the username and password is.
 			# Create the token, and continue on with the process.
-			if self.settings['username'] == '' or self.settings['password'] == '':
-				self.resp = xbmcgui.Dialog().yesno("You are not currently logged in.","AnimeFTW.tv requires you to be logged in to view", \
-				"videos. Would you like to log-in now?")
-				if self.resp:
-					self.respLogin = SETTINGS.openSettings()
-					
-					if self.settings['username'] == '' or self.settings['password'] == '':
-						xbmc.executebuiltin('XBMC.Notification("Please Login:","An Advanced member account is required to view more than 2 episodes of a series.", 3000)')
-						return ''
-					else:
-						response = self.validateLogin(SETTINGS.getSetting("username_ftw"), SETTINGS.getSetting("password_ftw"))
-						response = json.loads(response)
-						if response['status'] == "200":
-							# Successful login, return the token.
-							SETTINGS.setSetting(id="token", value=response['message'])
-							return response['message'] # this is the token.
-						else:
-							xbmc.executebuiltin('XBMC.Notification("Please Login:","Your Username or Password were not valid, please try again.", 3000)')
-				else:
-					xbmc.executebuiltin('XBMC.Notification("Please Login:","An account is required to view videos.", 3000)')
-					return ''
+			if self.settings['username'] == '' or self.settings['password'] == '':				
+				self.loginOptions(0)
 			else:
 				# we will build the the token since username and password are set.
 				response = self.validateLogin(SETTINGS.getSetting("username_ftw"), SETTINGS.getSetting("password_ftw"))
 				response = json.loads(response)
-				if response['status'] == "200":
+				if 'status' in response and response['status'] == "200":
 					# Successful login, return the token.
 					SETTINGS.setSetting(id="token", value=response['message'])
+					SETTINGS.setSetting(id="password_ftw", value="")
 					return response['message'] # this is the token.
 				else:
-					xbmc.executebuiltin('XBMC.Notification("Please Login:","Your Username or Password were not valid, please try again.", 3000)')
+					self.loginOptions(2)
 		else:
-			return self.settings['token']
+			# validate the token.
+			response = self.validateToken(self.settings['token'])
+			response = json.loads(response)
+			if response['status'] == "500":
+				# the validation was successful.
+				return self.settings['token']
+			else:
+				SETTINGS.setSetting(id="token", value="")
+				self.loginOptions(1)
 		
 	def validateLogin(self, username, password):
 		self.url = "https://www.animeftw.tv/api/v2/"
 		self.actionData = self.params # build in the parameters first.
 		self.actionData.update({"username":username,"password":password,"remember":"true"})
 		self.headers = {'content-type': 'application/json'}
+		print "[AFTW DATA] Login Data:"
+		print self.params
 		#Send the data to the server
 		response = requests.post(self.url,data=self.actionData)
 		finalResponse = response.text
 		return finalResponse
+		
+	def validateToken(self, token):
+		self.url = "https://www.animeftw.tv/api/v2/"
+		self.actionData = self.params # build in the parameters first.
+		self.actionData.update({"token":token,"action":"validate-token"})
+		self.headers = {'content-type': 'application/json'}
+		#Send the data to the server
+		response = requests.post(self.url,data=self.actionData)
+		finalResponse = response.text
+		SETTINGS.setSetting(id="password_ftw", value="")
+		return finalResponse
+		
+	def loginOptions(self, type):
+		if type == 0:
+			self.resp = xbmcgui.Dialog().yesno("You are not currently logged in.","AnimeFTW.tv requires you to be logged in to view videos. Would you like to log-in now?")
+		elif type == 2:
+			self.resp = xbmcgui.Dialog().yesno("Username or Password incorrect.","Please log in again.")
+		else:
+			self.resp = xbmcgui.Dialog().yesno("Session Expired!","Your existing session has expired. Would you like to log-in again?")
+			
+		if self.resp:
+			self.respLogin = SETTINGS.openSettings()
+					
+			if SETTINGS.getSetting("username_ftw") == '' or SETTINGS.getSetting("password_ftw") == '':
+				xbmc.executebuiltin('XBMC.Notification("Please Login:","An Advanced member account is required to view more than 2 episodes of a series.", 3000)')
+				return ''
+			else:
+				response = self.validateLogin(SETTINGS.getSetting("username_ftw"), SETTINGS.getSetting("password_ftw"))
+				response = json.loads(response)
+				if 'status' in response and response['status'] == "200":
+					# Successful login, return the token.
+					SETTINGS.setSetting(id="password_ftw", value="")
+					SETTINGS.setSetting(id="token", value=response['message'])
+					return response['message'] # this is the token.
+				else:
+					xbmc.executebuiltin('XBMC.Notification("Please Login:","Your Username or Password were not valid, please try again.", 3000)')
+		else:
+			xbmc.executebuiltin('XBMC.Notification("Please Login:","An account is required to view videos.", 3000)')
+			return ''
+		
 	
 class grabFTW:
 	
@@ -94,18 +126,22 @@ class grabFTW:
 		jsonSource = None
 		response = requests.post(self.url,data=self.actionData)
 		jsonSource = response.text
-		return jsonSource		
+		return jsonSource
 		
 	def getLatestEpisodes(self, count = 30):
 		data = {"action":"display-episodes","latest":"true","start":"0","count":str(count)}
 		action = "Display Latest Episodes"
 		jsonSource = self.getContent(data, action)
 		parsed_json = json.loads(jsonSource)
-		latest_results = parsed_json['results']
-		for episode in latest_results:
-			UI().addItem({'Seriesname': unicode(episode['fullSeriesName'].replace('`', '\'')).encode('utf-8'), 'Title': unicode(episode['fullSeriesName'].replace('`', '\'') + " - " + episode['epnumber'] + " - " + episode['epname'].replace('`', '\'')).encode('utf-8'), 'mode': 'playEpisode', 'url': episode['video'] })
-		del latest_results	
-		UI().endofdirectory('title')
+		if 'status' in parsed_json and parsed_json['status'] == "200":
+			latest_results = parsed_json['results']
+			print latest_results
+			for episode in latest_results:
+				UI().addItem({'Seriesname': unicode(episode['fullSeriesName'].replace('`', '\'')).encode('utf-8'), 'Title': unicode(episode['fullSeriesName'].replace('`', '\'') + " - " + episode['epnumber'] + " - " + episode['epname'].replace('`', '\'')).encode('utf-8'), 'mode': 'playEpisode', 'url': episode['video'] })
+			del latest_results	
+			UI().endofdirectory('title')
+		else :
+			self.resp = xbmcgui.Dialog().ok("Something went wrong!","Please try again, if you see this more than once uninstall and reinstall the plugin.")
 	
 	def getWatchlist(self, count = 25):
 		data = {"action":"display-mywatchlist","start":"0","count":"30"}
@@ -124,11 +160,14 @@ class grabFTW:
 		action = "Display Category Listing."
 		jsonSource = self.getContent(data, action)
 		parsed_json = json.loads(jsonSource)
-		tag_results = parsed_json['results']
-		for tag in tag_results:
-			UI().addItem({'Title': unicode(tag['name'].replace('`', '\'')).encode('utf-8'), 'mode': 'anime_all', 'category': tag['id']})
-		del tag_results
-		UI().endofdirectory('title')
+		if 'status' in parsed_json and parsed_json['status'] == "200":
+			tag_results = parsed_json['results']
+			for tag in tag_results:
+				UI().addItem({'Title': unicode(tag['name'].replace('`', '\'')).encode('utf-8'), 'mode': 'anime_all', 'category': tag['id']})
+			del tag_results
+			UI().endofdirectory('title')
+		else :
+			self.resp = xbmcgui.Dialog().ok("Something went wrong!","Please try again, if you see this more than once uninstall and reinstall the plugin.")
 		
 	def getListing(self, category = 0, showType = 'anime', count = 2000, filter = None):
 		if showType == 'anime':
@@ -142,65 +181,73 @@ class grabFTW:
 		
 		if filter:
 			data.update({"filter":str(filter)})
-			
+		
 		jsonSource = self.getContent(data, action)
 		parsed_json = json.loads(jsonSource)
 		
 		cat_list = ['episode', 'episode', 'episode', 'episode', 'episode', 'movie']
 		videoType = cat_list[category]
 		print "[AFTW] Current video type: " + str(videoType)
-		series_results = parsed_json['results']
-		for series in series_results:
-			numberOfMovies = int(series['Movies'])
-			numberOfEpisodes = 1
-			isAiring = int(series['stillRelease'])
-			if numberOfMovies == 1 and numberOfEpisodes == 1 and category != 5:
-				continue
-			elif numberOfMovies < 1 and category == 5:
-				continue
-			elif isAiring == 0 and category == 2:
-				continue
-			elif isAiring == 1 and category == 3:
-				continue
-			else:				
-				seriesdict = {'id': series['id'], \
-							  'name': unicode(series['fullSeriesName'].replace('`', '\'')).encode('utf-8'), \
-							  'nameorig': unicode(series['romaji']).encode('utf-8'), \
-							  'url': '0', \
-							  'thumb': series['image'], \
-							  'plot':unicode(series['description']).encode('utf-8'), \
-							  'rating': int(series['reviews-average-stars']), \
-							  'episodes': numberOfEpisodes, \
-							  'genre': unicode(series['category']).encode('utf-8') }
-							  
-				UI().addItem({'Title':seriesdict['name'], 'mode': videoType, 'url':seriesdict['url'], 'Thumb':seriesdict['thumb'], 'id':seriesdict['id']}, seriesdict, True, len(series_results))
-				
-		del series_results
-		UI().endofdirectory('title')
+		
+		if 'status' in parsed_json and parsed_json['status'] == "200":
+			series_results = parsed_json['results']
+			for series in series_results:
+				numberOfMovies = int(series['Movies'])
+				numberOfEpisodes = 1
+				isAiring = int(series['stillRelease'])
+				if numberOfMovies == 1 and numberOfEpisodes == 1 and category != 5:
+					continue
+				elif numberOfMovies < 1 and category == 5:
+					continue
+				elif isAiring == 0 and category == 2:
+					continue
+				elif isAiring == 1 and category == 3:
+					continue
+				else:				
+					seriesdict = {'id': series['id'], \
+								  'name': unicode(series['fullSeriesName'].replace('`', '\'')).encode('utf-8'), \
+								  'nameorig': unicode(series['romaji']).encode('utf-8'), \
+								  'url': '0', \
+								  'thumb': series['image'], \
+								  'plot':unicode(series['description']).encode('utf-8'), \
+								  'rating': int(series['reviews-average-stars']), \
+								  'episodes': numberOfEpisodes, \
+								  'genre': unicode(series['category']).encode('utf-8') }
+								  
+					UI().addItem({'Title':seriesdict['name'], 'mode': videoType, 'url':seriesdict['url'], 'Thumb':seriesdict['thumb'], 'id':seriesdict['id']}, seriesdict, True, len(series_results))
+					
+			del series_results
+			UI().endofdirectory('title')
+		else :
+			self.resp = xbmcgui.Dialog().ok("Something went wrong!","Please try again, if you see this more than once uninstall and reinstall the plugin.")
 		
 	def getEpisodes(self, url, seriesid = None, seriesimage = None, category = None):
 		data = {"id":seriesid,"action":"display-episodes","start":"0","count":"300"}
 		action = "Display Category Listing."
 		jsonSource = self.getContent(data, action)
 		parsed_json = json.loads(jsonSource)
-		episode_results = parsed_json['results']	
 		
-		for episode in episode_results:
-			if category == 'episode':
-				epname = unicode(episode['epnumber'] + ".) " + episode['epname'].replace('`', '\'')).encode('utf-8')
-			else:
-				epname = unicode(episode['epname'].replace('`', '\'')).encode('utf-8')
+		if 'status' in parsed_json and parsed_json['status'] == "200":
+			episode_results = parsed_json['results']	
 			
-			url = episode['video']
-			thumbnail = episode['image']
-			if thumbnail == "http://img02.animeftw.tv/video-images/noimage.png":
-				thumbnail = seriesimage
-			
-			li = xbmcgui.ListItem(epname, path = url, thumbnailImage = thumbnail)
-			li.setInfo(type="Video", infoLabels={ "Title": epname })
-			li.setProperty("IsPlayable","true");
-			xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=url, listitem=li, isFolder=False)
-		UI().endofdirectory()
+			for episode in episode_results:
+				if category == 'episode':
+					epname = unicode(episode['epnumber'] + ".) " + episode['epname'].replace('`', '\'')).encode('utf-8')
+				else:
+					epname = unicode(episode['epname'].replace('`', '\'')).encode('utf-8')
+				
+				url = episode['video']
+				thumbnail = episode['image']
+				if thumbnail == "http://img02.animeftw.tv/video-images/noimage.png":
+					thumbnail = seriesimage
+				
+				li = xbmcgui.ListItem(epname, path = url, thumbnailImage = thumbnail)
+				li.setInfo(type="Video", infoLabels={ "Title": epname })
+				li.setProperty("IsPlayable","true");
+				xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=url, listitem=li, isFolder=False)
+			UI().endofdirectory()
+		else :
+			self.resp = xbmcgui.Dialog().ok("Something went wrong!","Please try again, if you see this more than once uninstall and reinstall the plugin.")
 		
 	def playVid(self, url, name, thumb):
 		stream_url = url.replace(' ', '')
@@ -336,4 +383,5 @@ class Main:
 			UI().series()
 		elif mode == 'watchlist':
 			UI().watchlist()
+
 
