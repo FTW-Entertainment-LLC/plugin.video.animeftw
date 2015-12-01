@@ -1,3 +1,6 @@
+[B]Version 2.1.1[/B]
+- Fixed an issue where Series with Movies were not getting listed properly.
+
 [B]Version 2.1.0[/B]
 - Added Token validation
 - Improved error handling for the login.

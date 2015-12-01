@@ -192,12 +192,12 @@ class grabFTW:
 		if 'status' in parsed_json and parsed_json['status'] == "200":
 			series_results = parsed_json['results']
 			for series in series_results:
-				numberOfMovies = int(series['Movies'])
+				moviesonly = int(series['moviesonly'])
 				numberOfEpisodes = 1
 				isAiring = int(series['stillRelease'])
-				if numberOfMovies == 1 and numberOfEpisodes == 1 and category != 5:
+				if moviesonly == 1 and numberOfEpisodes == 1 and category != 5:
 					continue
-				elif numberOfMovies < 1 and category == 5:
+				elif moviesonly < 1 and category == 5:
 					continue
 				elif isAiring == 0 and category == 2:
 					continue
