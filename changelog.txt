@@ -1,3 +1,6 @@
+[B]Version 2.2.1[/B]
+- Updated Description of the addon.
+
 [B]Version 2.2.0[/B]
 - Updated xbmc.python to version 2.20.0
 - Added fanart.jpg to comply with Kodi requirements.
