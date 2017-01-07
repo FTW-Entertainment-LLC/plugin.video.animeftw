@@ -1,3 +1,6 @@
+[B]Version 2.2.2[/B]
+- Hotfix to resolve issues with python request needing verification.
+
 [B]Version 2.2.1[/B]
 - Updated Description of the addon.
 
