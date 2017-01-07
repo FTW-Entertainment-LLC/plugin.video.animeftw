@@ -67,7 +67,7 @@ class LoginFTW:
 		print "[AFTW DATA] Login Data:"
 		print self.params
 		#Send the data to the server
-		response = requests.post(self.url,data=self.actionData)
+		response = requests.post(self.url,data=self.actionData,params = {'verify':'False'})
 		finalResponse = response.text
 		return finalResponse
 		
@@ -77,7 +77,7 @@ class LoginFTW:
 		self.actionData.update({"token":token,"action":"validate-token"})
 		self.headers = {'content-type': 'application/json'}
 		#Send the data to the server
-		response = requests.post(self.url,data=self.actionData)
+		response = requests.post(self.url,data=self.actionData,params = {'verify':'False'})
 		finalResponse = response.text
 		SETTINGS.setSetting(id="password_ftw", value="")
 		return finalResponse
@@ -124,7 +124,7 @@ class grabFTW:
 		self.actionData = self.params # build in the parameters first.
 		self.actionData.update(data) # combine with the data supplied by the various functions.
 		jsonSource = None
-		response = requests.post(self.url,data=self.actionData)
+		response = requests.post(self.url,data=self.actionData,params = {'verify':'False'})
 		jsonSource = response.text
 		return jsonSource
 		
